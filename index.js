@@ -20,6 +20,8 @@ SuperCluster.prototype = {
         radius: 40,   // cluster radius in pixels
         extent: 512,  // tile extent (radius is calculated relative to it)
         nodeSize: 64, // size of the KD-tree leaf node, affects performance
+        selector: null, // function that selects properties from features
+        aggregator: null, // function to aggregate selected properties
         log: false    // whether to log timing info
     },
 
@@ -34,7 +36,7 @@ SuperCluster.prototype = {
         this.points = points;
 
         // generate a cluster object for each point
-        var clusters = points.map(createPointCluster);
+        var clusters = points.map((p, i) => createPointCluster(p, i, this.options.selector));
         if (log) console.timeEnd(timerId);
 
         // cluster points on max zoom, then cluster the results on previous zoom, etc.;
@@ -64,7 +66,7 @@ SuperCluster.prototype = {
         var clusters = [];
         for (var i = 0; i < ids.length; i++) {
             var c = tree.points[ids[i]];
-            clusters.push(c.id !== -1 ? this.points[c.id] : getClusterJSON(c));
+            clusters.push(c.id !== -1 ? this.points[c.id] : getClusterJSON(c, this.options.aggregator));
         }
         return clusters;
     },
@@ -109,7 +111,7 @@ SuperCluster.prototype = {
                     Math.round(this.options.extent * (c.x * z2 - x)),
                     Math.round(this.options.extent * (c.y * z2 - y))
                 ]],
-                tags: c.id !== -1 ? this.points[c.id].properties : getClusterProperties(c)
+                tags: c.id !== -1 ? this.points[c.id].properties : getClusterProperties(c, this.options.aggregator)
             });
         }
     },
@@ -137,6 +139,7 @@ SuperCluster.prototype = {
             var numPoints = p.numPoints;
             var wx = p.x * numPoints;
             var wy = p.y * numPoints;
+            var properties = p.properties;
 
             for (var j = 0; j < neighborIds.length; j++) {
                 var b = tree.points[neighborIds[j]];
@@ -147,51 +150,73 @@ SuperCluster.prototype = {
                     wx += b.x * b.numPoints; // accumulate coordinates for calculating weighted center
                     wy += b.y * b.numPoints;
                     numPoints += b.numPoints;
+                    if (properties !== null)
+                        Array.prototype.push.apply(properties, b.properties);
                 }
             }
 
-            clusters.push(foundNeighbors ? createCluster(wx / numPoints, wy / numPoints, numPoints, -1) : p);
+            clusters.push(foundNeighbors ? createCluster(wx / numPoints, wy / numPoints, numPoints, -1, properties) : p);
         }
 
         return clusters;
     }
 };
 
-function createCluster(x, y, numPoints, id) {
+function createCluster(x, y, numPoints, id, property) {
     return {
         x: x, // weighted cluster center
         y: y,
         zoom: Infinity, // the last zoom the cluster was processed at
         id: id, // index of the source feature in the original input array
-        numPoints: numPoints
+        numPoints: numPoints,
+        properties: property
     };
 }
 
-function createPointCluster(p, i) {
+function createPointCluster(p, i, s) {
     var coords = p.geometry.coordinates;
-    return createCluster(lngX(coords[0]), latY(coords[1]), 1, i);
+    var property = null;
+    if (s !== null) {
+        property = [s(p)];
+    }
+
+    var t = createCluster(lngX(coords[0]), latY(coords[1]), 1, i, property);
+    return t;
 }
 
-function getClusterJSON(cluster) {
-    return {
+function getClusterJSON(cluster, aggregator) {
+    var properties = getClusterProperties(cluster, aggregator);
+    var json = {
         type: 'Feature',
-        properties: getClusterProperties(cluster),
         geometry: {
             type: 'Point',
             coordinates: [xLng(cluster.x), yLat(cluster.y)]
         }
     };
+
+    if (properties !== null)
+        json['properties'] = properties;
+
+    return json;
 }
 
-function getClusterProperties(cluster) {
+function getClusterProperties(cluster, aggregator) {
     var count = cluster.numPoints;
     var abbrev = count >= 10000 ? Math.round(count / 1000) + 'k' :
                  count >= 1000 ? (Math.round(count / 100) / 10) + 'k' : count;
-    return {
+    var properties = cluster.properties;
+
+    var clusterProperties = {
         cluster: true,
         point_count: count,
         point_count_abbreviated: abbrev
     };
+
+    if (properties !== null) {
+        clusterProperties['cluster_properties'] = aggregator !== null ? aggregator(properties) : properties;
+    }
+
+    return clusterProperties;
 }
 
 // longitude/latitude to spherical mercator in [0..1] range
