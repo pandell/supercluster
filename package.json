@@ -1,7 +1,7 @@
 {
-  "name": "supercluster",
+  "name": "@pandell/supercluster",
   "version": "2.2.0",
-  "description": "A crazy fast geospatial point clustering library.",
+  "description": "A crazy fast geospatial point clustering library (pandell fork).",
   "main": "index.js",
   "scripts": {
     "pretest": "eslint index.js test/test.js",
@@ -16,7 +16,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/mapbox/supercluster.git"
+    "url": "git://github.com/pandell/supercluster.git"
   },
   "keywords": [
     "clustering",
