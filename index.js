@@ -36,7 +36,7 @@ SuperCluster.prototype = {
         this.points = points;
 
         // generate a cluster object for each point
-        var clusters = points.map((p, i) => createPointCluster(p, i, this.options.selector));
+        var clusters = points.map(function(p, i) { return createPointCluster(p, i, this.options.selector); });
         if (log) console.timeEnd(timerId);
 
         // cluster points on max zoom, then cluster the results on previous zoom, etc.;
