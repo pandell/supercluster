@@ -1,6 +1,6 @@
 {
   "name": "@pandell/supercluster",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "A crazy fast geospatial point clustering library (pandell fork).",
   "main": "index.js",
   "scripts": {
